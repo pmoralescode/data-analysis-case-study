@@ -39,6 +39,8 @@ def load_data():
     ).drop(columns=['quarter'])
 
     return model_df.dropna(subset=['traffic_qoq_growth'])
+
+model_df = load_data()
 # builds a separate linear regression model for each ticker
 # returns all predictions and a summary of model accuracy
 
