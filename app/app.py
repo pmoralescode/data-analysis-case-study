@@ -96,3 +96,35 @@ st.dataframe(
     summary_df.sort_values('rev_r2', ascending=False).reset_index(drop=True),
     use_container_width=True
 )
+
+# ── Section 3: Bonus — Traffic vs Actuals Scatter ────────────────────────────
+
+st.subheader(f'{ticker} — Traffic Volume vs Reported KPIs')
+st.caption(
+    'This view shows the raw relationship between quarterly foot traffic and financial performance '
+    'for the selected ticker. A clear upward trend indicates foot traffic is a strong predictor '
+    'for that company — useful for quickly evaluating data quality on a per-name basis.'
+)
+
+# create side by side scatter plots for SSS% and Revenue
+fig2, axes = plt.subplots(1, 2, figsize=(10, 4))
+
+# traffic vs SSS%
+axes[0].scatter(df_t['total_traffic'], df_t['reported_sss_pct'], color='steelblue')
+axes[0].set_xlabel('Total Quarterly Traffic')
+axes[0].set_ylabel('SSS%')
+axes[0].set_title('Traffic vs SSS%')
+
+# traffic vs Revenue
+axes[1].scatter(df_t['total_traffic'], df_t['reported_revenue_mm'], color='darkorange')
+axes[1].set_xlabel('Total Quarterly Traffic')
+axes[1].set_ylabel('Revenue ($M)')
+axes[1].set_title('Traffic vs Revenue')
+
+# clean up chart borders
+for ax in axes:
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+plt.tight_layout()
+st.pyplot(fig2)
