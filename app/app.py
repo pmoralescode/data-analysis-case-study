@@ -6,7 +6,39 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, r2_score
 
 # ── Load & prepare data ──────────────────────────────────────────────────────
+@st.cache_data
+def load_data():
+    ft = pd.read_csv('data/foot_traffic.csv', parse_dates=['date'])
+    ra = pd.read_csv('data/reported_actuals.csv', parse_dates=['earnings_date'])
 
+    def assign_fiscal_quarter(date):
+        month, year = date.month, date.year
+        if month in [2, 3, 4]: return f'{year}-Q1'
+        elif month in [5, 6, 7]: return f'{year}-Q2'
+        elif month in [8, 9, 10]: return f'{year}-Q3'
+        else: return f'{year - 1}-Q4' if month == 1 else f'{year}-Q4'
+
+    ft['fiscal_quarter'] = ft['date'].apply(assign_fiscal_quarter)
+
+    quarterly = ft.groupby(['ticker', 'fiscal_quarter']).agg(
+        total_traffic=('foot_traffic', 'sum'),
+        avg_daily_traffic=('foot_traffic', 'mean'),
+        peak_traffic=('foot_traffic', 'max')
+    ).reset_index()
+
+    quarterly = quarterly.sort_values(['ticker', 'fiscal_quarter'])
+    quarterly['traffic_qoq_growth'] = (
+        quarterly.groupby('ticker')['total_traffic'].pct_change() * 100
+    )
+    quarterly['traffic_normalized'] = quarterly.groupby('ticker')['total_traffic'].transform(
+        lambda x: (x - x.mean()) / x.std()
+    )
+
+    model_df = quarterly.merge(
+        ra, left_on=['ticker', 'fiscal_quarter'], right_on=['ticker', 'quarter'], how='inner'
+    ).drop(columns=['quarter'])
+
+    return model_df.dropna(subset=['traffic_qoq_growth'])
 # builds a separate linear regression model for each ticker
 # returns all predictions and a summary of model accuracy
 
