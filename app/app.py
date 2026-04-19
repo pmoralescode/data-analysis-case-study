@@ -7,3 +7,92 @@ from sklearn.metrics import mean_absolute_error, r2_score
 
 # ── Load & prepare data ──────────────────────────────────────────────────────
 
+# builds a separate linear regression model for each ticker
+# returns all predictions and a summary of model accuracy
+
+def build_predictions(model_df):
+    features = ['traffic_normalized', 'traffic_qoq_growth']
+
+    # store results as looping thru tickers
+    all_preds = []
+    summary = []
+
+    # build a model for each ticker
+    for ticker in model_df['ticker'].unique():
+        df_t = model_df[model_df['ticker'] == ticker].copy()
+
+        # input (traffic features)
+        X = df_t[features]
+
+        # one model to predict SSS% and one to predict revenue
+        sss_model = LinearRegression().fit(X, df_t['reported_sss_pct'])
+        rev_model = LinearRegression().fit(X, df_t['reported_revenue_mm'])
+
+        # store the predictions back into the dataframe
+        df_t['pred_sss'] = sss_model.predict(X)
+        df_t['pred_revenue'] = rev_model.predict(X)
+        all_preds.append(df_t)
+
+        # calculate and store accuracy metrics for ticker
+        summary.append({
+            'ticker': ticker,
+            # MAE = average prediction error
+            'sss_mae': round(mean_absolute_error(df_t['reported_sss_pct'], df_t['pred_sss']), 3),
+            # R2 = how much variation the model explains (1.0 = perfect)
+            'sss_r2': round(r2_score(df_t['reported_sss_pct'], df_t['pred_sss']), 3),
+            'rev_mae': round(mean_absolute_error(df_t['reported_revenue_mm'], df_t['pred_revenue']), 3),
+            'rev_r2': round(r2_score(df_t['reported_revenue_mm'], df_t['pred_revenue']), 3),
+        })
+
+    # combine all ticker dataframes into one and return alongside the summary
+    return pd.concat(all_preds).reset_index(drop=True), pd.DataFrame(summary)
+
+# call the function and store the results
+preds_df, summary_df = build_predictions(model_df)
+
+# sidebar dropdown lets the user pick any of the 20 tickers
+ticker = st.sidebar.selectbox('Select a Ticker', sorted(preds_df['ticker'].unique()))
+
+# filter predictions to just the selected ticker and sort by quarter
+df_t = preds_df[preds_df['ticker'] == ticker].sort_values('fiscal_quarter')
+
+# ── Section 1: Forecast vs Actuals ───────────────────────────────────────────
+
+st.subheader(f'{ticker} — Forecast vs Actuals')
+
+# radio button lets user toggle between the two KPIs
+kpi = st.radio('Select KPI', ['SSS%', 'Revenue ($M)'], horizontal=True)
+
+# creating the chart
+fig, ax = plt.subplots(figsize=(10, 4))
+
+if kpi == 'SSS%':
+    # plot actual and predicted SSS% over time
+    ax.plot(df_t['fiscal_quarter'], df_t['reported_sss_pct'], marker='o', label='Actual')
+    ax.plot(df_t['fiscal_quarter'], df_t['pred_sss'], marker='o', linestyle='--', label='Predicted')
+    ax.set_ylabel('SSS%')
+else:
+    # plot actual and predicted revenue over time
+    ax.plot(df_t['fiscal_quarter'], df_t['reported_revenue_mm'], marker='o', label='Actual')
+    ax.plot(df_t['fiscal_quarter'], df_t['pred_revenue'], marker='o', linestyle='--', label='Predicted')
+    ax.set_ylabel('Revenue ($M)')
+
+ax.tick_params(axis='x', rotation=45)
+ax.legend()
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+plt.tight_layout()
+
+# render the chart in the app
+st.pyplot(fig)
+
+# ── Section 2: Forecast Quality Summary ──────────────────────────────────────
+
+st.subheader('Forecast Quality — All Tickers')
+st.caption('R2 closer to 1.0 = stronger signal. MAE = average prediction error.')
+
+# display the summary table sorted by revenue R2 (strongest signal first)
+st.dataframe(
+    summary_df.sort_values('rev_r2', ascending=False).reset_index(drop=True),
+    use_container_width=True
+)
