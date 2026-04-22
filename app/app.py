@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, r2_score
@@ -162,3 +163,14 @@ for ax in axes:
 
 plt.tight_layout()
 st.pyplot(fig2)
+
+# ── Section 4: Bonus — State-Level Traffic Heatmap ───────────────────────────
+
+st.subheader(f'{ticker} — State-Level Traffic Heatmap')
+st.caption(
+    'This heatmap shows which states drive the most foot traffic for the selected ticker across all quarters. '
+    'It helps a portfolio manager assess whether the signal is geographically concentrated or broadly distributed '
+    'before relying on it for investment decisions.'
+)
+
+# load raw foot traffic data to get state level breakdown
