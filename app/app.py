@@ -7,6 +7,15 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, r2_score
 
 # ── Load & prepare data ──────────────────────────────────────────────────────
+
+# sets the browser tab title, icon, and wide layout
+st.set_page_config(
+    page_title='Foot Traffic Signal Dashboard',
+    page_icon='📈',
+    layout='wide'
+)
+
+
 @st.cache_data
 def load_data():
     ft = pd.read_csv('data/foot_traffic.csv', parse_dates=['date'])
@@ -44,6 +53,10 @@ def load_data():
 model_df = load_data()
 # builds a separate linear regression model for each ticker
 # returns all predictions and a summary of model accuracy
+
+st.title('📈 Foot Traffic Signal Dashboard')
+st.caption('Interval Partners LP — Data Analysis')
+st.divider()
 
 def build_predictions(model_df):
     features = ['traffic_normalized', 'traffic_qoq_growth']
@@ -91,6 +104,19 @@ ticker = st.sidebar.selectbox('Select a Ticker', sorted(preds_df['ticker'].uniqu
 # filter predictions to just the selected ticker and sort by quarter
 df_t = preds_df[preds_df['ticker'] == ticker].sort_values('fiscal_quarter')
 
+# metric cards show key stats for the selected ticker at a glance
+ticker_summary = summary_df[summary_df['ticker'] == ticker].iloc[0]
+
+st.subheader('Key Stats')
+
+col1, col2, col3, col4 = st.columns(4)
+col1.metric('Ticker', ticker)
+col2.metric('SSS% R2', ticker_summary['sss_r2'])
+col3.metric('Revenue R2', ticker_summary['rev_r2'])
+col4.metric('SSS% MAE', f"{ticker_summary['sss_mae']}%")
+
+st.divider()
+
 # ── Section 1: Forecast vs Actuals ───────────────────────────────────────────
 
 st.subheader(f'{ticker} — Forecast vs Actuals')
@@ -121,6 +147,8 @@ plt.tight_layout()
 # render the chart in the app
 st.pyplot(fig)
 
+st.divider()
+
 # ── Section 2: Forecast Quality Summary ──────────────────────────────────────
 
 st.subheader('Forecast Quality — All Tickers')
@@ -131,6 +159,8 @@ st.dataframe(
     summary_df.sort_values('rev_r2', ascending=False).reset_index(drop=True),
     use_container_width=True
 )
+
+st.divider()
 
 # ── Section 3: Bonus — Traffic vs Actuals Scatter ────────────────────────────
 
@@ -164,6 +194,8 @@ for ax in axes:
 plt.tight_layout()
 st.pyplot(fig2)
 
+st.divider()
+
 # ── Section 4: Bonus — State-Level Traffic Heatmap ───────────────────────────
 
 st.subheader(f'{ticker} — State-Level Traffic Heatmap')
@@ -195,3 +227,19 @@ state_data = ft_raw[ft_raw['ticker'] == ticker].groupby(
 
 # pivot to create a matrix of states vs quarters
 heatmap_data = state_data.pivot(index='state', columns='fiscal_quarter', values='foot_traffic')
+
+# plot the heatmap
+fig3, ax = plt.subplots(figsize=(14, 6))
+sns.heatmap(
+    heatmap_data,
+    ax=ax,
+    cmap='YlOrRd',
+    fmt='.0f',
+    linewidths=0.5,
+    cbar_kws={'label': 'Total Foot Traffic'}
+)
+ax.set_title(f'{ticker} — Foot Traffic by State and Quarter')
+ax.set_xlabel('Fiscal Quarter')
+ax.set_ylabel('State')
+plt.tight_layout()
+st.pyplot(fig3)
