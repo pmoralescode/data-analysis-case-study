@@ -174,3 +174,24 @@ st.caption(
 )
 
 # load raw foot traffic data to get state level breakdown
+@st.cache_data
+def load_raw():
+    ft_raw = pd.read_csv('data/foot_traffic.csv', parse_dates=['date'])
+    def assign_fiscal_quarter(date):
+        month, year = date.month, date.year
+        if month in [2, 3, 4]: return f'{year}-Q1'
+        elif month in [5, 6, 7]: return f'{year}-Q2'
+        elif month in [8, 9, 10]: return f'{year}-Q3'
+        else: return f'{year - 1}-Q4' if month == 1 else f'{year}-Q4'
+    ft_raw['fiscal_quarter'] = ft_raw['date'].apply(assign_fiscal_quarter)
+    return ft_raw
+
+ft_raw = load_raw()
+
+# filter to selected ticker and aggregate by state and quarter
+state_data = ft_raw[ft_raw['ticker'] == ticker].groupby(
+    ['state', 'fiscal_quarter']
+)['foot_traffic'].sum().reset_index()
+
+# pivot to create a matrix of states vs quarters
+heatmap_data = state_data.pivot(index='state', columns='fiscal_quarter', values='foot_traffic')
