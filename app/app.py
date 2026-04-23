@@ -15,7 +15,6 @@ st.set_page_config(
     layout='wide'
 )
 
-
 @st.cache_data
 def load_data():
     ft = pd.read_csv('data/foot_traffic.csv', parse_dates=['date'])
@@ -50,14 +49,25 @@ def load_data():
 
     return model_df.dropna(subset=['traffic_qoq_growth'])
 
+# load raw foot traffic data to get state level breakdown
+@st.cache_data
+def load_raw():
+    ft_raw = pd.read_csv('data/foot_traffic.csv', parse_dates=['date'])
+    def assign_fiscal_quarter(date):
+        month, year = date.month, date.year
+        if month in [2, 3, 4]: return f'{year}-Q1'
+        elif month in [5, 6, 7]: return f'{year}-Q2'
+        elif month in [8, 9, 10]: return f'{year}-Q3'
+        else: return f'{year - 1}-Q4' if month == 1 else f'{year}-Q4'
+    ft_raw['fiscal_quarter'] = ft_raw['date'].apply(assign_fiscal_quarter)
+    ft_raw['day_of_week'] = ft_raw['date'].dt.day_name()
+    return ft_raw
+
 model_df = load_data()
+ft_raw = load_raw()
+
 # builds a separate linear regression model for each ticker
 # returns all predictions and a summary of model accuracy
-
-st.title('📈 Foot Traffic Signal Dashboard')
-st.caption('Interval Partners LP — Data Analysis')
-st.divider()
-
 def build_predictions(model_df):
     features = ['traffic_normalized', 'traffic_qoq_growth']
 
@@ -98,8 +108,25 @@ def build_predictions(model_df):
 # call the function and store the results
 preds_df, summary_df = build_predictions(model_df)
 
+# ── Sidebar ───────────────────────────────────────────────────────────────────
+
+st.sidebar.header('Filters')
+
 # sidebar dropdown lets the user pick any of the 20 tickers
 ticker = st.sidebar.selectbox('Select a Ticker', sorted(preds_df['ticker'].unique()))
+
+# state selector — dynamically updates based on selected ticker
+available_states = sorted(ft_raw[ft_raw['ticker'] == ticker]['state'].unique())
+selected_state = st.sidebar.selectbox('Filter by State', ['All States'] + available_states)
+
+st.sidebar.divider()
+st.sidebar.caption('Note: Forecast charts show ticker-level data. State filter applies to traffic heatmaps.')
+
+# ── Page Header ───────────────────────────────────────────────────────────────
+
+st.title('📈 Foot Traffic Signal Dashboard')
+st.caption('Interval Partners LP — Data Analysis')
+st.divider()
 
 # filter predictions to just the selected ticker and sort by quarter
 df_t = preds_df[preds_df['ticker'] == ticker].sort_values('fiscal_quarter')
@@ -205,23 +232,14 @@ st.caption(
     'before relying on it for investment decisions.'
 )
 
-# load raw foot traffic data to get state level breakdown
-@st.cache_data
-def load_raw():
-    ft_raw = pd.read_csv('data/foot_traffic.csv', parse_dates=['date'])
-    def assign_fiscal_quarter(date):
-        month, year = date.month, date.year
-        if month in [2, 3, 4]: return f'{year}-Q1'
-        elif month in [5, 6, 7]: return f'{year}-Q2'
-        elif month in [8, 9, 10]: return f'{year}-Q3'
-        else: return f'{year - 1}-Q4' if month == 1 else f'{year}-Q4'
-    ft_raw['fiscal_quarter'] = ft_raw['date'].apply(assign_fiscal_quarter)
-    return ft_raw
-
-ft_raw = load_raw()
+# filter by state if one is selected
+if selected_state == 'All States':
+    state_filtered = ft_raw[ft_raw['ticker'] == ticker]
+else:
+    state_filtered = ft_raw[(ft_raw['ticker'] == ticker) & (ft_raw['state'] == selected_state)]
 
 # filter to selected ticker and aggregate by state and quarter
-state_data = ft_raw[ft_raw['ticker'] == ticker].groupby(
+state_data = state_filtered.groupby(
     ['state', 'fiscal_quarter']
 )['foot_traffic'].sum().reset_index()
 
@@ -243,3 +261,40 @@ ax.set_xlabel('Fiscal Quarter')
 ax.set_ylabel('State')
 plt.tight_layout()
 st.pyplot(fig3)
+
+st.divider()
+
+# ── Section 5: Day of Week Heatmap ───────────────────────────────────────────
+
+st.subheader(f'{ticker} — Average Traffic by State and Day of Week')
+st.caption(
+    'Shows whether foot traffic for the selected ticker is concentrated on weekdays or weekends '
+    'by state. Useful for understanding the shopping behavior of each retailer\'s customer base.'
+)
+
+# order days correctly Monday through Sunday
+day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+# average traffic by state and day of week for selected ticker
+dow_data = state_filtered.groupby(
+    ['state', 'day_of_week']
+)['foot_traffic'].mean().reset_index()
+
+# pivot to create state vs day of week matrix
+dow_heatmap = dow_data.pivot(index='state', columns='day_of_week', values='foot_traffic')
+dow_heatmap = dow_heatmap[day_order]
+
+# plot the heatmap
+fig4, ax = plt.subplots(figsize=(12, 6))
+sns.heatmap(
+    dow_heatmap,
+    ax=ax,
+    cmap='YlOrRd',
+    linewidths=0.5,
+    cbar_kws={'label': 'Avg Daily Foot Traffic'}
+)
+ax.set_title(f'{ticker} — Avg Traffic by State and Day of Week')
+ax.set_xlabel('Day of Week')
+ax.set_ylabel('State')
+plt.tight_layout()
+st.pyplot(fig4)
