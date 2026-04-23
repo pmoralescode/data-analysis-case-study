@@ -76,9 +76,3 @@ streamlit run app/app.py
 - **Forecast quality summary** — table showing MAE and R2 for all 20 tickers at a glance
 - **Bonus — Traffic vs KPI scatter** — shows the raw relationship between quarterly foot traffic and financial performance for the selected ticker. This view helps a portfolio manager quickly assess whether foot traffic is a reliable signal for a specific name before relying on it for investment decisions
 
----
-
-## Assumptions
-- Fiscal quarters align as Q1=Feb–Apr, Q2=May–Jul, Q3=Aug–Oct, Q4=Nov–Jan for all tickers
-- The 10 states tracked per ticker are representative of each company's broader traffic patterns
-- Models are trained and evaluated on the same data — out-of-sample performance may differ
